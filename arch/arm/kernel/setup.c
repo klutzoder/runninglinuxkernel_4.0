@@ -896,8 +896,8 @@ void __init setup_arch(char **cmdline_p)
 {
 	const struct machine_desc *mdesc;
 
-	setup_processor();
-	mdesc = setup_machine_fdt(__atags_pointer);
+	setup_processor();	// 初始化 cpu
+	mdesc = setup_machine_fdt(__atags_pointer); // find device tree
 	if (!mdesc)
 		mdesc = setup_machine_tags(__atags_pointer, __machine_arch_type);
 	machine_desc = mdesc;
@@ -920,10 +920,10 @@ void __init setup_arch(char **cmdline_p)
 
 	early_paging_init(mdesc, lookup_processor_type(read_cpuid_id()));
 	setup_dma_zone(mdesc);
-	sanity_check_meminfo();
+	sanity_check_meminfo();		// 切分内存，是否需要 highmemory
 	arm_memblock_init(mdesc);
 
-	paging_init(mdesc);
+	paging_init(mdesc);			// 重要!
 	request_standard_resources(mdesc);
 
 	if (mdesc->restart)

@@ -852,6 +852,7 @@ u64 __init dt_mem_next_cell(int s, const __be32 **cellp)
 
 /**
  * early_init_dt_scan_memory - Look for an parse memory nodes
+ * 从 dts 中查找与 memory 相关的数据
  */
 int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 				     int depth, void *data)
@@ -977,7 +978,7 @@ void __init __weak early_init_dt_add_memory_arch(u64 base, u64 size)
 		size -= phys_offset - base;
 		base = phys_offset;
 	}
-	memblock_add(base, size);
+	memblock_add(base, size); // 将找到的内存添加到 memblock 子系统，是伙伴系统还未初始化之前的内存管理系统
 }
 
 int __init __weak early_init_dt_reserve_memory_arch(phys_addr_t base,

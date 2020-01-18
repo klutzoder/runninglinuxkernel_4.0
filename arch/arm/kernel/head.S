@@ -52,14 +52,17 @@
 	.equ	swapper_pg_dir, KERNEL_RAM_VADDR - PG_DIR_SIZE
 
 	.macro	pgtbl, rd, phys
-	add	\rd, \phys, #TEXT_OFFSET
-	sub	\rd, \rd, #PG_DIR_SIZE
+	add	\rd, \phys, #TEXT_OFFSET @ kernel 0x8000
+	sub	\rd, \rd, #PG_DIR_SIZE   @ 一级页表宽度 0x4000
 	.endm
 
 /*
  * Kernel startup entry point.
  * ---------------------------
- *
+ * 内核的入口地址
+ * 为什么 MMU 要关闭? 内核需要自己创建页表，在创建页表前，内核实际运行的是物理地址，必须要保证 MMU 关闭。
+ * 为什么 D-cache 要关闭? 因为内核运行到这里的时候，若 D-cache 开启，则会从 cache 取得数据，可能缓存 uboot 或 解压时留下的数据，这部分数据是无用的，可能导致数据获取异常。
+ * 
  * This is normally called from the decompressor code.  The requirements
  * are: MMU = off, D-cache = off, I-cache = dont care, r0 = 0,
  * r1 = machine nr, r2 = atags or dtb pointer.
@@ -89,10 +92,10 @@ ENTRY(stext)
 	bl	__hyp_stub_install
 #endif
 	@ ensure svc mode and all interrupts masked
-	safe_svcmode_maskall r9
+	safe_svcmode_maskall r9 
 
 	mrc	p15, 0, r9, c0, c0		@ get processor id
-	bl	__lookup_processor_type		@ r5=procinfo r9=cpuid
+	bl	__lookup_processor_type		@ r5=procinfo r9=cpuid arch/arm/include/asm/procinfo.h  struct proc_info_list 描述 cpu 信息, 定义在 arch/arm/mm/proc-v7.S
 	movs	r10, r5				@ invalid processor (r5=0)?
  THUMB( it	eq )		@ force fixup-able long branch encoding
 	beq	__error_p			@ yes, error 'p'
@@ -111,7 +114,7 @@ ENTRY(stext)
 	sub	r4, r3, r4			@ (PHYS_OFFSET - PAGE_OFFSET)
 	add	r8, r8, r4			@ PHYS_OFFSET
 #else
-	ldr	r8, =PLAT_PHYS_OFFSET		@ always constant in this case
+	ldr	r8, =PLAT_PHYS_OFFSET		@ always constant in this case 物理地址与零地址偏移
 #endif
 
 	/*
@@ -125,7 +128,11 @@ ENTRY(stext)
 #ifdef CONFIG_ARM_PATCH_PHYS_VIRT
 	bl	__fixup_pv_table
 #endif
-	bl	__create_page_tables
+	/*
+	 *	1. 打开 mmu 把打开 mmu 代码对应到段映射到 1m 大小的地方。创建一个恒等的映射。虚拟地址=物理地址
+	 *  2. 把内核的 image 代码映射到内核到虚拟空间中。
+	 */
+	bl	__create_page_tables @创建页表
 
 	/*
 	 * The following calls CPU specific code in a position independent
@@ -133,6 +140,7 @@ ENTRY(stext)
 	 * xxx_proc_info structure selected by __lookup_processor_type
 	 * above.  On return, the CPU will be ready for the MMU to be
 	 * turned on, and r0 will hold the CPU control register value.
+	 * __mmap_switched 定义在 arch/arm/kernel/head-common.S
 	 */
 	ldr	r13, =__mmap_switched		@ address to jump to after
 						@ mmu has been enabled
@@ -150,6 +158,12 @@ ENDPROC(stext)
 #endif
 
 /*
+ * 创意一个物理地址与虚拟地址一致的映射
+ * 为了打开 MMU 时候需要一个临时的页表。
+ * __create_page_tables 做了两件事情:
+ *	1. 打开 mmu 把打开 mmu 代码对应到段映射到 1m 大小的地方。创建一个恒等的映射。虚拟地址=物理地址
+ *  2. 把内核的 image 代码映射到内核到虚拟空间中。
+ *
  * Setup the initial page tables.  We only setup the barest
  * amount which are required to get the kernel running, which
  * generally means mapping in the kernel code.
@@ -204,13 +218,13 @@ __create_page_tables:
 #endif
 #endif
 
-	ldr	r7, [r10, #PROCINFO_MM_MMUFLAGS] @ mm_mmuflags
+	ldr	r7, [r10, #PROCINFO_MM_MMUFLAGS] @ mm_mmuflags 设置 mmu 标志位
 
 	/*
 	 * Create identity mapping to cater for __enable_mmu.
 	 * This identity mapping will be removed by paging_init().
 	 */
-	adr	r0, __turn_mmu_on_loc
+	adr	r0, __turn_mmu_on_loc 
 	ldmia	r0, {r3, r5, r6}
 	sub	r0, r0, r3			@ virt->phys offset
 	add	r5, r5, r0			@ phys __turn_mmu_on
@@ -226,6 +240,7 @@ __create_page_tables:
 
 	/*
 	 * Map our RAM from the start to the end of the kernel .bss section.
+	 * 内核代码段区域，映射到 0xc000_8000 位置
 	 */
 	add	r0, r4, #PAGE_OFFSET >> (SECTION_SHIFT - PMD_ORDER)
 	ldr	r6, =(_end - 1)
@@ -427,7 +442,7 @@ __secondary_data:
  */
 __enable_mmu:
 #if defined(CONFIG_ALIGNMENT_TRAP) && __LINUX_ARM_ARCH__ < 6
-	orr	r0, r0, #CR_A
+	orr	r0, r0, #CR_A 
 #else
 	bic	r0, r0, #CR_A
 #endif
@@ -474,7 +489,7 @@ ENTRY(__turn_mmu_on)
 	mrc	p15, 0, r3, c0, c0, 0		@ read id reg
 	instr_sync
 	mov	r3, r3
-	mov	r3, r13
+	mov	r3, r13 @ 跳转到 __mmap_switched 函数
 	ret	r3
 __turn_mmu_on_end:
 ENDPROC(__turn_mmu_on)

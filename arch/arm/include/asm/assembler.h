@@ -312,6 +312,9 @@
  *
  * This macro is intended for forcing the CPU into SVC mode at boot time.
  * you cannot return to the original mode.
+ *
+ * 为什么要进入 svc 模式?
+ *
  */
 .macro safe_svcmode_maskall reg:req
 #if __LINUX_ARM_ARCH__ >= 6 && !defined(CONFIG_CPU_V7M)

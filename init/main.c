@@ -486,6 +486,10 @@ static void __init mm_init(void)
 	vmalloc_init();
 }
 
+/*
+ * arm 主要设置了堆栈，以及硬件必须的操作。
+ * 开始进入内核，进行内核各个子系统的初始化。
+ */
 asmlinkage __visible void __init start_kernel(void)
 {
 	char *command_line;
@@ -516,8 +520,8 @@ asmlinkage __visible void __init start_kernel(void)
  */
 	boot_cpu_init();
 	page_address_init();
-	pr_notice("%s", linux_banner);
-	setup_arch(&command_line);
+	pr_notice("%s", linux_banner);	// linux 版本，编译名称，gcc 版本，编译时间
+	setup_arch(&command_line);		// 与体系结构相关, 初始化与具体体系结构相关的
 	mm_init_cpumask(&init_mm);
 	setup_command_line(command_line);
 	setup_nr_cpu_ids();

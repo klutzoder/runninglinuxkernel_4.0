@@ -1,6 +1,16 @@
 /* ld script to make ARM Linux kernel
  * taken from the i386 version by Russell King
  * Written by Martin Mares <mj@atrey.karlin.mff.cuni.cz>
+ * 当前文件为链接文件，主要将相应的数据放到指定的位置
+ * 例子:
+ * SECTIONS 
+ * {
+ *		. = 0x10000;		 // 起始地址入口
+ *		.text : { *(.text) } // 所有.text段地址
+ *		. = 0x50000;         // 链接地址变为 0x50000
+ *		.data : { *(.data) }
+ *		.bss  : { *(.bss)  }
+ * }
  */
 
 #include <asm-generic/vmlinux.lds.h>
@@ -46,7 +56,7 @@
 #endif
 
 OUTPUT_ARCH(arm)
-ENTRY(stext)
+ENTRY(stext) // 内核总入口在 stext, 
 
 #ifndef __ARMEB__
 jiffies = jiffies_64;
@@ -87,6 +97,11 @@ SECTIONS
 #ifdef CONFIG_XIP_KERNEL
 	. = XIP_VIRT_ADDR(CONFIG_XIP_PHYS_ADDR);
 #else
+	// 没有定义 CONFIG_XIP_KERNEL 所以开始链接地址在这里
+	// grep -rn TEXT_OFFSET arch/arm 找到位置在 arch/arm/Makefile:231:TEXT_OFFSET := $(textofs-y)
+	// 继续查找 textofs-y arch/arm/Makefile:131:textofs-y	:= 0x00008000
+	// PAGE_OFFSET: 0xc000_0000 
+	// 因此映射的虚拟地址为: 0xc000_8000
 	. = PAGE_OFFSET + TEXT_OFFSET;
 #endif
 	.head.text : {

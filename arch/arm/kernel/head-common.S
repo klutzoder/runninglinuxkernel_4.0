@@ -81,7 +81,7 @@ ENDPROC(__vet_atags)
 __mmap_switched:
 	adr	r3, __mmap_switched_data
 
-	ldmia	r3!, {r4, r5, r6, r7}
+	ldmia	r3!, {r4, r5, r6, r7} @ 将 mmap_switched_data 装载到 r4, r5, r6, r7
 	cmp	r4, r5				@ Copy data segment if needed
 1:	cmpne	r5, r6
 	ldrne	fp, [r4], #4
@@ -101,7 +101,7 @@ __mmap_switched:
 	str	r2, [r6]			@ Save atags pointer
 	cmp	r7, #0
 	strne	r0, [r7]			@ Save control register values
-	b	start_kernel
+	b	start_kernel		@ 跳转到 kernel
 ENDPROC(__mmap_switched)
 
 	.align	2
